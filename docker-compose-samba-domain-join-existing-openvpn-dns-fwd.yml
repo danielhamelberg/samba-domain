@@ -1,0 +1,74 @@
+#Example
+#Join an existing domain, forward DNS, remove security features, and connect to a remote site via openvpn
+
+#Local site is 192.168.3.0
+#Local DC (this one) hostname is LOCALDC using the host IP of 192.168.3.222
+#Local existing DC is running DNS and has IP of 192.168.3.201
+#Local main DNS is running on 192.168.3.1
+#Remote site is 192.168.6.0
+#Remote DC hostname is REMOTEDC with IP of 192.168.6.222 (notice the DNS and host entries)
+version: '2'
+
+networks:
+  extnet:
+    external: true
+
+services:
+
+# ----------- samba begin ----------- #
+
+  samba:
+    image: nowsci/samba-domain
+    container_name: samba
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /data/docker/containers/samba/data/:/var/lib/samba
+      - /data/docker/containers/samba/config/samba:/etc/samba/external
+      - /data/docker/containers/samba/config/openvpn/docker.ovpn:/docker.ovpn
+      - /data/docker/containers/samba/config/openvpn/credentials:/credentials
+    environment:
+      - DOMAIN=SAMDOM.LOCAL
+      - DOMAINPASS=ThisIsMyAdminPassword
+      - JOIN=true
+      - DNSFORWARDER=192.168.3.1
+      - MULTISITE=true
+      - NOCOMPLEXITY=true
+      - INSECURELDAP=true
+    networks:
+      - extnet
+    ports:
+      - 192.168.3.222:53:53
+      - 192.168.3.222:53:53/udp
+      - 192.168.3.222:88:88
+      - 192.168.3.222:88:88/udp
+      - 192.168.3.222:135:135
+      - 192.168.3.222:137-138:137-138/udp
+      - 192.168.3.222:139:139
+      - 192.168.3.222:389:389
+      - 192.168.3.222:389:389/udp
+      - 192.168.3.222:445:445
+      - 192.168.3.222:464:464
+      - 192.168.3.222:464:464/udp
+      - 192.168.3.222:636:636
+      - 192.168.3.222:1024-1044:1024-1044
+      - 192.168.3.222:3268-3269:3268-3269
+    dns_search:
+      - samdom.local
+    dns:
+      - 192.168.3.222
+      - 192.168.3.1
+      - 192.168.6.222
+      - 192.168.3.201
+    extra_hosts:
+      - localdc.samdom.local:192.168.3.222
+      - remotedc.samdom.local:192.168.6.222
+      - remotedc:192.168.6.222
+    hostname: localdc
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun
+    privileged: true
+    restart: always
+
+# ----------- samba end ----------- #

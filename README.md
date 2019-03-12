@@ -106,80 +106,9 @@ Check the samba documentation for how to allow groups/etc.
 ## Keeping things updated
 The container is stateless, so you can do a `docker rmi samba-domain` and then restart the container to rebuild packages when a security update occurs. However, this puts load on servers that isn't always required, so below are some scripts that can help minimize things by letting you know when containers have security updates that are required.
 
-This script loops through running containers and sends you an email when security updates are required.
-```
-#!/bin/bash
+The update script is samba-domain-update.sh.
+The update notification email script is samba-domain-update-notification.sh.
 
-
-function needsUpdates() {
-        RESULT=$(docker exec ${1} bash -c ' \
-                if [[ -f /etc/apt/sources.list ]]; then \
-                grep security /etc/apt/sources.list > /tmp/security.list; \
-                apt-get update > /dev/null; \
-                apt-get upgrade -oDir::Etc::Sourcelist=/tmp/security.list -s; \
-                fi; \
-                ')
-        RESULT=$(echo $RESULT)
-        GOODRESULT="Reading package lists... Building dependency tree... Reading state information... Calculating upgrade... 0 upgraded, 0 newly installed, 0 to remove and 0 not upgraded."
-        if [[ "${RESULT}" != "" ]] && [[ "${RESULT}" != "${GOODRESULT}" ]]; then
-                return 0
-        else
-                return 1
-        fi
-}
-
-function sendEmail() {
-        echo "Container ${1} needs security updates";
-        H=`hostname`
-        ssh -i /data/keys/<KEYFILE> <USRER>@<REMOTEHOST>.com "{ echo \"MAIL FROM: root@${H}\"; echo \"RCPT TO: <USER>@<EMAILHOST>.com\"; echo \"DATA\"; echo \"Subject: ${H} - ${1} container needs security update\"; echo \"\"; echo -e \"\n${1} container needs update.\n\n\"; echo -e \"docker exec ${1} bash -c 'grep security /etc/apt/sources.list > /tmp/security.list; apt-get update > /dev/null; apt-get upgrade -oDir::Etc::Sourcelist=/tmp/security.list -s'\n\n\"; echo \"Remove the -s to run the update\"; echo \"\"; echo \".\"; echo \"quit\"; sleep 1; } | telnet <SMTPHOST> 25"
-}
-
-CONTAINERS=$(docker ps --format "{{.Names}}")
-for CONTAINER in $CONTAINERS; do
-        echo "Checking ${CONTAINER}"
-        if needsUpdates $CONTAINER; then
-                sendEmail $CONTAINER
-        fi
-done
-```
-
-And the following script keeps track of when new images are posted to hub.docker.com.
-```
-#!/bin/bash
-
-DATAPATH='/data/docker/updater/data'
-
-if [ ! -d "${DATAPATH}" ]; then
-        mkdir "${DATAPATH}";
-fi
-IMAGES=$(docker ps --format "{{.Image}}")
-for IMAGE in $IMAGES; do
-        ORIGIMAGE=${IMAGE}
-        if [[ "$IMAGE" != *\/* ]]; then
-                IMAGE=library/${IMAGE}
-        fi
-        IMAGE=${IMAGE%%:*}
-        echo "Checking ${IMAGE}"
-        PARSED=${IMAGE//\//.}
-        if [ ! -f "${DATAPATH}/${PARSED}" ]; then
-                # File doesn't exist yet, make baseline
-                echo "Setting baseline for ${IMAGE}"
-                curl -s "https://registry.hub.docker.com/v2/repositories/${IMAGE}/tags/" > "${DATAPATH}/${PARSED}"
-        else
-                # File does exist, do a compare
-                NEW=$(curl -s "https://registry.hub.docker.com/v2/repositories/${IMAGE}/tags/")
-                OLD=$(cat "${DATAPATH}/${PARSED}")
-                if [[ "${OLD}" == "${NEW}" ]]; then
-                        echo "Image ${IMAGE} is up to date";
-                else
-                        echo ${NEW} > "${DATAPATH}/${PARSED}"
-                        echo "Image ${IMAGE} needs to be updated";
-                        H=`hostname`
-                        ssh -i /data/keys/<KEYFILE> <USER>@<REMOTEHOST>.com "{ echo \"MAIL FROM: root@${H}\"; echo \"RCPT TO: <USER>@<EMAILHOST>.com\"; echo \"DATA\"; echo \"Subject: ${H} - ${IMAGE} needs update\"; echo \"\"; echo -e \"\n${IMAGE} needs update.\n\ndocker pull ${ORIGIMAGE}\"; echo \"\"; echo \".\"; echo \"quit\"; sleep 1; } | telnet <SMTPHOST> 25"
-                fi
-
-        fi
-done;
 ```
 
 # Examples with docker run

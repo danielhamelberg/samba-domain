@@ -7,13 +7,14 @@
 #Local site is 192.168.3.0
 #Local DC (this one) hostname is LOCALDC using the host IP of 192.168.3.222
 #Local main DNS is running on 192.168.3.1
-#version: '2'
 
-#networks:
-#  extnet:
-#    external: true
+version: '2'
 
-#services:
+networks:
+  extnet:
+    external: true
+
+services:
 
 # ----------- samba begin ----------- #
 
